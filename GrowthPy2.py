@@ -16,10 +16,10 @@ from copy import copy
 from scipy.stats import linregress
 
 def Log(x):
-    '''calculates the log of an array'''
+    '''calculates the log of every entry in an array'''
     return [log(i) for i in x]
 
-def calculateFits(x,y,N=17):
+def movingRegression(x,y,N=17):
     '''Fits a moving linear regression to a set of points using the linregress function, 
     and returns a list of tupples (m,c,X,Y) where m is the slope, c is the y-intercept, X is midpoint, Y is the midpoint value 
     the function assumes that the Number of points for the fit is odd, if N is even, it add an addional point. '''
@@ -48,31 +48,38 @@ def calculateFits(x,y,N=17):
     return [(fits[i][0], fits[i][1], x[i+n], y[i+n]) for i in range(len(fits))]   #this returns a list of tupples (m,c,x-midpoint,y-midpoint)
     
 def findInflection(x,y, N=17):
-    '''Finds the inflection point in a curve by finding the point with max slope, returns a tupple.'''
-    return max(calculateFits(x,y, N))   #get the inflection slope. 
+    '''Finds the inflection point in a curve by finding the point with max slope, 
+    Returns a tupple for the inflection point (m,c,x,y).'''
+    return max(movingRegression(x,y, N))   #get the inflection slope. 
 
-def predict(m, c,xmin, xmax,N=17):
-    '''Returns the the prediction of a linear regression for drawing and stuff. '''
-    #you know for kids. 
-    X = arange(xmin, xmax,0.1)    #Get and X
+def predict(m, c,xmin, xmax, stepsize = 0.1):
+    '''Returns the the prediction of a linear regression for drawing and stuff, you know for kids. '''
+    #Inputs m: slope, c:y-intecept, xmin- minium x-value, xmax  = maximum x value, stepsize: step size in an interval
+   
+   #Generate an array of X to predict on. 
+    X = arange(xmin, xmax, stepsize)    
+    #Calculate the prediction and return
     return (X,[c+m*x for x in X ])
-     
-def plotNormalizedSlope(x,y,N=17, xlabel = 'X', ylabel= 'Normalized Slope / Y'):
-    '''Plots the normalized moving slope and the normalized  Y versus x'''
     
-    #Calculate the moving fits using linear regression. 
-    fits = calculateFits(x,y,N)
+    
+def plotNormalizedSlope(x,y,N=17, xlabel = 'X', ylabel= 'Normalized Slope / Y'):
+    '''Normalizes the move slope and the Y values of a data set and plots these on the same graph for 
+    easy visualization.'''
+    #The inputs are as above. 
+    #Calculate a moving linear Regression. 
+    fits = movingRegression(x,y,N)
     
     #From the fits, get the x interval and the normalized slopes
-    x2 = [f[2] for f in fits]            #x interval for the slopes
-    m =  [f[0] for f in fits]            #normalized slopes
+     #x interval for the slopes
+    x2 = [f[2] for f in fits]  
+    #get thenormalized slopes
+    m =  [f[0] for f in fits]            
             
     #Get the coordinates for the Inflection point to plot.  
     Inflection= max(fits)              #get the tupple for the inflection point.
-    Ix  = Inflection[2]                #get the x for the inflecition point and normalize it. 
+    Ix  = Inflection[2]                #get the x for the inflection point and normalize it. 
     Imy = (Inflection[0] - min(m))/(max(m)-min(m))       #get a normalized slope at the infleciton point.    
     Iy  = (y[list(x).index(Ix)] - min(y))/(max(y) -min(y))    #get the normalized y at the inflection point
-    
     
     #Plot the Data
     plt.plot(x2, normalize(m), x, normalize(y))  
@@ -85,12 +92,13 @@ def plotNormalizedSlope(x,y,N=17, xlabel = 'X', ylabel= 'Normalized Slope / Y'):
     ax.set_ylabel(ylabel, size =15)
     plt.legend(('Normalized Slope', 'Normalized Y'), fontsize = 14)
 
-def plotInflecionSlopeOnGraph(x,y,N= 17, xlabel = 'X', ylabel = 'Y', legend='Y versus X'):
+
+def plotInflecionSlopeOnGraph(x,y,N= 17, xlabel = 'X', ylabel = 'Y', legend='Y versus X', stepsize = 0.1):
     '''Plots a graph with the inflection point and the slope throught the inflection point'''
     
     #get the inflection point. 
     I = findInflection(x,y,N)
-    Sx, Sy = predict(I[0], I[1], 0, max(x))   #get the corrdinates for the max line. 
+    Sx, Sy = predict(m = I[0], c= I[1],xmin= 0,xmax =  max(x), stepsize=stepsize)   #get the corrdinates for the max line. 
     
     #plot the data
     plt.plot(x,y, Sx,Sy)
@@ -101,18 +109,29 @@ def plotInflecionSlopeOnGraph(x,y,N= 17, xlabel = 'X', ylabel = 'Y', legend='Y v
     ax.set_ylabel(ylabel, size =15)
     plt.legend((legend, 'Slope Through Inflection Point'), fontsize = 14)
     
-    
-
 def normalize(x):
     '''Nomalize an array s.t. z = (x-min(x))/(max(x)-min(x)'''
     return (x-min(x))/(max(x)-min(x))
 
 class Growth(object):
+    '''Import and formats data from a Tecan Plate reader experiment for plotting and analysis
     
-    def __init__(self,fin, Minutes = True):
-        '''read in and parses a Tecan Excel file, and generates an Growth Object
-        This object has several attributes:
-        self.time: An array  '''
+    Attributes:
+        time (numpy array): Contains the time data. 
+        intensity (pandas DataFrame): Contains the Intesnity Data  
+        MetaData (pandas Dataframe): Initially a string, but upon creation by the getMetaData function, becomes a Data frame that holds the metadata.  
+    
+    '''
+    def __init__(self,fin,meta ='', Minutes = True):
+        '''Read in and parses a Tecan Excel file, and generates an Growth Object.
+        
+        Args:
+            fin (str): Absolute path or handle to the excel file. 
+            meta (str): If not equal to '', Path to to the MetaData excel file. 
+            minutes (bool): If True, the time data is converted from seconds to minutes. 
+    
+        Returns: 
+            A Growth Object'''
         
         self.data  = read_excel(fin)
         
@@ -137,7 +156,11 @@ class Growth(object):
         self.intensity.columns.name = 'Sample Well'        
         self.intensity.index = arange(size(self.intensity.index,0))    #rename the index(rows)
         
-        self.MetaData =''
+        if meta=='':
+            self.MetaData =''
+            print meta
+        else: 
+            self.MetaData = self.getMetaData(meta)
         
     def getParameters(self):
         '''Calculate the parameters'''
@@ -154,12 +177,15 @@ class Growth(object):
         if save ==True:
             plt.savefig(path)
         
-    def getMetaData(self,fin):
-        '''loads and Attaches Metadata from an excel file. '''
+    def getMetaData(self,meta):
+        '''Loads and parses meta data from a excel file
+        
+        Args
+            meta (str): Path to the meta data'''
         self.MetaData = read_excel(fin)
     
     def subset(self,Value='', Parameter = 'Condition' ):
-        '''creates a new Growth object that is subset on the Conditions equal to a given parameter'''
+        '''Creates a new Growth object subset on a given Parameter and Value.'''
         
         if type(self.MetaData) ==str:
             print 'There is no Meta Data present for subsetting. '
@@ -186,8 +212,10 @@ if __name__=='__main__':
     fin = join(getcwd(),'Example.xlsx')
     meta = join(getcwd(), 'MetaData.xlsx')
     
-    g = Growth(fin, Minutes= True)
-    g.getMetaData(meta)   #get the meta data
+    g = Growth(fin, meta ,Minutes= True)
+
+    
+    #g.plot()
     #example slopes
 
   #  t = g.time
