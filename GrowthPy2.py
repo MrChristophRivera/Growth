@@ -66,17 +66,20 @@ def findInflection(x,y, N=17):
         x (numeric list or numpy.array): data for domain. 
         y (numeric list or numpy.array): data for range.
         N (int): window size for moving linear regression.
+
     Returns:
-        a tupple (m,c,x,y) where m is the slope, c is the y intercept of the fit and x is the x cordinate, y is the y cordinate. .'''
+        A tupple (m,c,x,y) where m is the slope, c is the y intercept of the fit and x is the x cordinate, y is the y cordinate. .'''
     return max(movingRegression(x,y, N))   #get the inflection slope. 
 
 def predict(m, c, xmin, xmax, stepsize = 0.1):
-    '''Predicts a line.
+    '''Predicts a line on an interval given parameters for slope and y-intercept.
+    
     Args:
         m (float): slope
         c (float): y-intercept
         xmin (float): minimum x-value
         ymin (float): minimum y-value. 
+
     Returns:
         An X and Y numeric array. '''
    
@@ -88,12 +91,14 @@ def predict(m, c, xmin, xmax, stepsize = 0.1):
     
 def plotNormalizedSlope(x,y,N=17, xlabel = 'X', ylabel= 'Normalized Slope / Y'):
     '''Normalizes an x,y, estimates and normalizes a slope and plots the data. \n
+
     Args:
-        x (numeric iterable). \n
-        y (numeric iterable). \n
+        x (numeric iterable). Data for the domain. \n
+        y (numeric iterable). Data for the range. \n
         N (int): window size. \n
         xlabel (str): X axis label. \n
         ylabel (str): Y axis label. \n
+
     Returns:
         Normalized data, and normalized slope. '''
 
@@ -127,7 +132,20 @@ def plotNormalizedSlope(x,y,N=17, xlabel = 'X', ylabel= 'Normalized Slope / Y'):
     plt.legend(('Normalized Slope', 'Normalized Y'), fontsize = 14)
     
 def plotInflecionSlopeOnGraph(x,y,N= 17, xlabel = 'X', ylabel = 'Y', legend='Y versus X', stepsize = 0.1):
-    '''Plots a graph with the inflection point and the slope throught the inflection point'''
+    '''Plots a graph with the inflection point and the slope throught the inflection point.
+    
+    Args:
+        x (numeric iterable). Data for the domain. \n
+        y (numeric iterable). Data for the range. \n
+        N (int): window size. \n
+        xlabel (str): Label for the x-axis. \n
+        ylabel (str): Label for the y-axis \n
+        Legend (str): Label for the Legend. \n 
+        stepsize (float): step size for prediction. \n 
+        
+    Returns:
+       Bull.  plots a graph. 
+    '''
     
     #get the inflection point. 
     I = findInflection(x,y,N)
@@ -144,8 +162,9 @@ def plotInflecionSlopeOnGraph(x,y,N= 17, xlabel = 'X', ylabel = 'Y', legend='Y v
     
 def normalize(x):
     '''Nomalize an array s.t. z = (x-min(x))/(max(x)-min(x). \n
+
     Args: 
-        x (numeric iterable): series
+        x (numeric iterable): series. \n
     
     Returns:
         a normalized series. 
@@ -153,11 +172,15 @@ def normalize(x):
     '''
     return (x-min(x))/(max(x)-min(x))
 
-def movingaverage(interval, window_size):
-    '''Returns a moving average for an array
+def movingAverage(interval, window_size):
+    '''Returns a moving average for an array. \n
+    
     Args:
-        interval (list/array): 
-        window_size (int): The size of the window.'''
+        interval (numeric iterable): Data. \n
+        window_size (int): The size of the window. \n
+    
+    Returns: 
+        numpy array with the moving average. '''
     window= numpy.ones(int(window_size))/float(window_size)
     return numpy.convolve(interval, window, 'same')
 
@@ -175,49 +198,57 @@ def zero(x, N=5):
 
 def rollingMeanDf(df, window=5):
     '''Calculates a rolling mean for each column vector in a data frame using apply method This computes a moving 
-    average assuming with center ==True.
+    average assuming with center = True.
+    
     Args:
-        df (pandas.DataFrame): DataFrame containg numeric vectors
-        window (int): Window size
+        df (pandas.DataFrame): DataFrame containg numeric vectors. \n
+        window (int): Window size. \n
         
     Returns: 
-        A dataframe contianing the moving averages. '''
+        A dataframe contianing the moving averages. 
+    '''
+    #set up the arguments for the rolling_mean function. 
     min_periods = None
     freq = None
     center =True
+    
+    #use data.Frame.apply method to apply the rolling_mean function to every series. 
     return df.apply(rolling_mean, axis = 0, args=[ window,min_periods, freq, center] )
               
 class Growth(object):
-    '''Import and formats data from a Tecan Plate reader experiment for plotting and analysis
-    
-    Attributes:
-        time (numpy array): Contains the time data. \n
-        intensity (pandas DataFrame): Contains the Intesnity Data \n  
-        MetaData (pandas Dataframe): Initially a string, but upon creation by the getMetaData function, becomes a Data frame that holds the metadata.  \n
-    
-    '''
-    def __init__(self,fin,meta ='', Minutes = True):
-        '''Read in and parses a Tecan Excel file, and generates an Growth Object.
+    '''Read in and parses a Tecan Excel file, and generates a Growth Object.
+        
+        Attributes:
+            time (numpy array): Contains the time data. \n
+            intensity (pandas DataFrame): Contains the Intesnity Data \n  
+            MetaData (pandas Dataframe): Initially a string, but upon creation by the getMetaData function, becomes a Data frame that holds the metadata.  \n
         
         Args:
-            fin (str): Absolute path or handle to the excel file. 
-            meta (str): If not equal to '', Path to to the MetaData excel file. 
-            minutes (bool): If True, the time data is converted from seconds to minutes. 
+            fin (str): Absolute path or handle to the excel file. \n
+            meta (str): If not equal to '', Path to to the MetaData excel file. \n
+            minutes (bool): If True, the time data is converted from seconds to minutes. \n
     
         Returns: 
             A Growth Object'''
+            
+    def __init__(self,fin,meta ='', Minutes = True):
+        #Inits the growth object
         
+        #Read in the data/ 
         self.data  = read_excel(fin)
         
         #create an index object from the first column to search. 
         self.index = Index(self.data.iloc[:,0])
         
         #Get the location of the first and final row for the data. 
-        self.start = self.index.get_loc('Time [s]')    #THe first row begins with tim
+        self.start = self.index.get_loc('Time [s]')    #THe first row begins with time
         
         #get the time
-        self.time = array(self.data.iloc[self.start, 1:])
+        self.time = self.data.iloc[self.start, 1:]
+        #change the index labels.  
+        self.time.index = arange(len(self.time))
         self.Time = 'Time (sec)'       #a label for the plotting
+        
         #if Minutes = True, convert the time (which is in seconds to minutes)
         if Minutes == True:
             self.time = self.time/60.0
@@ -233,28 +264,45 @@ class Growth(object):
             self.MetaData =''
         else: 
             self.getMetaData(meta)
+            
+        #Call estimateGrowthParameters to estimate the growth parameters. 
         self.estimateGrowthParameters()
         
-    def estimateMaxRate(self):
-        '''Estimates the maximum growth rates by fitting a line exponential (linear part) of a growth curve. This function picks points automatically ranging from the the points greater than 0.5 of the floor and 0.95 of the plateau.
+    
+    def estimateMaxRate(self, x, logx, lower_t, upper_t ):
+        '''helper function that fits a line and returns the maximum rate.''' 
+        
+        #subset the log data based on the lower_t, upper_t and delta. 
+        #Calculate a boolean that determines the points that are greater than the lower threshold and less thatn the upper threshold
+        b = logical_and(x>lower_t, x<upper_t)
+        
+        #fit a line to this data and return a tupple for the data. 
+        return linregress(self.time[b],logx[b] )
+    
+    def estimateMaxRates(self):
+        '''Estimates the maximum growth rates by fitting a line to the data in with the y log transformed. This function picks points automatically ranging from the the points greater than 0.2 of the floor and 0.8 of the plateau.
+        
         Args:
             None
+        
         Returns:
             None
         '''
         
-        #Calculate the Log of the data
-        self.Log  = self.intensity.apply(Log)
-        #calculate deltaa between the floor and the plateau
-        delta = self.plateau-self.floor
+        #calculate delta change between the floor and the plateau
+        self.delta = self.plateau-self.floor
         
         #calculate a lower and upper threshold. 
-        lower_threshold = 0.2*delta + self.floor
-        upper_threshold = 0.8*delta + self.floor
+        self.lower_threshold = 0.2*self.delta + self.floor
+        self.upper_threshold = 0.8*self.delta + self.floor
         
-        #get the points that are below it 
-        
-   
+        #use the estimateMaxRate to get a tupple
+        self.MaxRateTupples = [self.estimateMaxRate(self.intensity.iloc[:,i], self.Log.iloc[:,i], self.lower_threshold[i], self.upper_threshold[i]) for i in range(len(self.intensity.columns))]
+       
+        #get the max rates
+        self.MaxRates = [tupple[0] for tupple in self.MaxRateTupples]
+       
+       
     def estimateGrowthParameters(self, window=5):
         '''Estimates the log time, maximal growth rate and the plateau/ Carrying capacity from data
         Args:
@@ -263,19 +311,23 @@ class Growth(object):
         Returns:
             A tuple (tlag, uMax, floor,plateau)
             '''
+        #Calculate the Log of the data which will be used in the estimation of the max rate. 
+        self.Log  = self.intensity.apply(Log)
+        
         #Compute a rolling Mean     
         self.rolling = rollingMeanDf(self.intensity,window=5)
         
-        #compute the floor  and floor inex
+        #Determine the values and index for the floor
         self.floor = self.rolling.min(axis=0)
         self.floor_index= self.rolling.idxmin(axis=0)
         
-        #compute the plateau and the plateau index
+        #Determine the values and index for the plateau
         self.plateau = self.rolling.max(axis=0)
         self.plateau_index = self.rolling.idxmax(axis=0)
         
-        #compute the maximal growth ratee for each column
-        self.estimateMaxRate()
+        
+        #compute the maximal growth ratefor each column
+        self.estimateMaxRates()
         
     def plot(self, save =False, path = '', logY=False):
         #Plots the intensity data. 
@@ -331,11 +383,22 @@ if __name__=='__main__':
     
     g = Growth(fin, meta ,Minutes= True)
     x=g.intensity.iloc[:,0]
+    d = g.delta[0]
+    f = g.floor[0]
+    p = g.plateau[0]
     
+    y = g.intensity
+    
+    
+    
+    #b1 = x>(f+0.2*d)
+    #b2 = x<f+0.8*d
+    b = logical_and(x>(f+0.2*d), x<f+0.8*d)
+    #print x>(f+0.2*d)
+    
+    #print(g.delta[0])
 
-    plotNormalizedSlope(g.time,x)
-
-
+    #plotNormalizedSlope(g.time,x)
     
    
     
