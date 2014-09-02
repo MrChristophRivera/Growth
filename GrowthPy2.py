@@ -16,13 +16,25 @@ from copy import copy
 from scipy.stats import linregress
 
 def Log(x):
-    '''calculates the log of every entry in an array'''
+    '''Calculates the natural log of every entry in an array.
+    
+    Args:
+        x (numeric iterable):
+    Returns:
+        iterable.
+    
+    '''
     return [log(i) for i in x]
 
 def movingRegression(x,y,N=17):
-    '''Fits a moving linear regression to a set of points using the linregress function, 
-    and returns a list of tupples (m,c,X,Y) where m is the slope, c is the y-intercept, X is midpoint, Y is the midpoint value 
-    the function assumes that the Number of points for the fit is odd, if N is even, it add an addional point. '''
+    '''Fits a moving linear regression to an x, y data series.
+    
+    Args:
+            x (list or numpy.array): The domain of the data
+            y (list or numpy.array): The range. 
+            N (int): THe window for the moving regression. 
+   Returns:
+        A list of tuples (m,c,X,Y), where m is the slope, c is the y-intercept, X is midpoint, Y is the midpoint value'''    
     
     #Quality checks
     if N%2 ==0: 
@@ -35,26 +47,38 @@ def movingRegression(x,y,N=17):
    
     elif N> len(x):
         print 'The number of points for the fit excess the number of points in the series.'
-    
     n = (N-1)/2    #calculate the points on the sides. 
     
-    #Get a truncated interval for moving linear regression. 
+    #Get an interval to calculate the moving regression. 
     l = len(x) 
-    L = range(n, l- n)   #L containts the indexs corresponding to x minus the first n and last n indicies. 
-        
-    n = (N-1)/2   #calcuate the number of points to the left and right of the center. 
+    L = range(n, l- n)   
+
+    #Calculate the number of points to the right and left of the midpoint.    
+    n = (N-1)/2   
     #fit moving linear regressions. 
     fits =   [linregress(x[i-n:i+n], y[i-n:i+n]) for i in  L]  
     return [(fits[i][0], fits[i][1], x[i+n], y[i+n]) for i in range(len(fits))]   #this returns a list of tupples (m,c,x-midpoint,y-midpoint)
     
 def findInflection(x,y, N=17):
-    '''Finds the inflection point in a curve by finding the point with max slope, 
-    Returns a tupple for the inflection point (m,c,x,y).'''
+    '''Find the inflection point of an x, y series. 
+    
+    Args:
+        x (numeric list or numpy.array): data for domain. 
+        y (numeric list or numpy.array): data for range.
+        N (int): window size for moving linear regression.
+    Returns:
+        a tupple (m,c,x,y) where m is the slope, c is the y intercept of the fit and x is the x cordinate, y is the y cordinate. .'''
     return max(movingRegression(x,y, N))   #get the inflection slope. 
 
-def predict(m, c,xmin, xmax, stepsize = 0.1):
-    '''Returns the the prediction of a linear regression for drawing and stuff, you know for kids. '''
-    #Inputs m: slope, c:y-intecept, xmin- minium x-value, xmax  = maximum x value, stepsize: step size in an interval
+def predict(m, c, xmin, xmax, stepsize = 0.1):
+    '''Predicts a line.
+    Args:
+        m (float): slope
+        c (float): y-intercept
+        xmin (float): minimum x-value
+        ymin (float): minimum y-value. 
+    Returns:
+        An X and Y numeric array. '''
    
    #Generate an array of X to predict on. 
     X = arange(xmin, xmax, stepsize)    
@@ -63,27 +87,37 @@ def predict(m, c,xmin, xmax, stepsize = 0.1):
     
     
 def plotNormalizedSlope(x,y,N=17, xlabel = 'X', ylabel= 'Normalized Slope / Y'):
-    '''Normalizes the move slope and the Y values of a data set and plots these on the same graph for 
-    easy visualization.'''
-    #The inputs are as above. 
+    '''Normalizes an x,y, estimates and normalizes a slope and plots the data. \n
+    Args:
+        x (numeric iterable). \n
+        y (numeric iterable). \n
+        N (int): window size. \n
+        xlabel (str): X axis label. \n
+        ylabel (str): Y axis label. \n
+    Returns:
+        Normalized data, and normalized slope. '''
+
     #Calculate a moving linear Regression. 
     fits = movingRegression(x,y,N)
     
     #From the fits, get the x interval and the normalized slopes
      #x interval for the slopes
-    x2 = [f[2] for f in fits]  
+    x_slopes = [f[2] for f in fits]  
     #get thenormalized slopes
-    m =  [f[0] for f in fits]            
+    slopes =  [f[0] for f in fits]            
             
     #Get the coordinates for the Inflection point to plot.  
-    Inflection= max(fits)              #get the tupple for the inflection point.
-    Ix  = Inflection[2]                #get the x for the inflection point and normalize it. 
-    Imy = (Inflection[0] - min(m))/(max(m)-min(m))       #get a normalized slope at the infleciton point.    
-    Iy  = (y[list(x).index(Ix)] - min(y))/(max(y) -min(y))    #get the normalized y at the inflection point
+    inflectionPoint= max(fits)              #get the tupple for the inflection point.
+    #get the x coordinate for the inflection point and normalize it. 
+    inflection_x  = inflectionPoint[2]  
+    #get a normalized slope at the infleciton point.             
+    inflection_slope_y = (inflectionPoint[0] - min(slopes))/(max(slopes)-min(slopes))
+    #get the normalized y at the inflection point           
+    inflection_y  = (y[list(x).index(inflection_x)] - min(y))/(max(y) -min(y))    
     
     #Plot the Data
-    plt.plot(x2, normalize(m), x, normalize(y))  
-    plt.plot(Ix,Iy,'g.', Ix,Imy, 'b.', markersize= 20)
+    plt.plot(x_slopes, normalize(slopes), x, normalize(y))  
+    plt.plot(inflection_x,inflection_y,'g.', inflection_x,inflection_slope_y, 'b.', markersize= 10)
     
     #modify the plot
     ax = plt.gca()   #get the current axes so can modify
@@ -91,8 +125,7 @@ def plotNormalizedSlope(x,y,N=17, xlabel = 'X', ylabel= 'Normalized Slope / Y'):
     ax.set_xlabel(xlabel, size=15)
     ax.set_ylabel(ylabel, size =15)
     plt.legend(('Normalized Slope', 'Normalized Y'), fontsize = 14)
-
-
+    
 def plotInflecionSlopeOnGraph(x,y,N= 17, xlabel = 'X', ylabel = 'Y', legend='Y versus X', stepsize = 0.1):
     '''Plots a graph with the inflection point and the slope throught the inflection point'''
     
@@ -110,16 +143,57 @@ def plotInflecionSlopeOnGraph(x,y,N= 17, xlabel = 'X', ylabel = 'Y', legend='Y v
     plt.legend((legend, 'Slope Through Inflection Point'), fontsize = 14)
     
 def normalize(x):
-    '''Nomalize an array s.t. z = (x-min(x))/(max(x)-min(x)'''
+    '''Nomalize an array s.t. z = (x-min(x))/(max(x)-min(x). \n
+    Args: 
+        x (numeric iterable): series
+    
+    Returns:
+        a normalized series. 
+    
+    '''
     return (x-min(x))/(max(x)-min(x))
 
+def movingaverage(interval, window_size):
+    '''Returns a moving average for an array
+    Args:
+        interval (list/array): 
+        window_size (int): The size of the window.'''
+    window= numpy.ones(int(window_size))/float(window_size)
+    return numpy.convolve(interval, window, 'same')
+
+
+def zero(x, N=5):
+    ''' Zeros a series by subtracting the mean of the smallest N points from all points
+    Args
+        x (iterable): numeric list or numpy.array
+        N (int): number of points to include for average        
+    Returns
+        A zeroed array/list'''
+    #calculte the mean for the N smallest points and subtract it from the list
+    return x- mean(sorted(x)[:N])
+
+
+def rollingMeanDf(df, window=5):
+    '''Calculates a rolling mean for each column vector in a data frame using apply method This computes a moving 
+    average assuming with center ==True.
+    Args:
+        df (pandas.DataFrame): DataFrame containg numeric vectors
+        window (int): Window size
+        
+    Returns: 
+        A dataframe contianing the moving averages. '''
+    min_periods = None
+    freq = None
+    center =True
+    return df.apply(rolling_mean, axis = 0, args=[ window,min_periods, freq, center] )
+              
 class Growth(object):
     '''Import and formats data from a Tecan Plate reader experiment for plotting and analysis
     
     Attributes:
-        time (numpy array): Contains the time data. 
-        intensity (pandas DataFrame): Contains the Intesnity Data  
-        MetaData (pandas Dataframe): Initially a string, but upon creation by the getMetaData function, becomes a Data frame that holds the metadata.  
+        time (numpy array): Contains the time data. \n
+        intensity (pandas DataFrame): Contains the Intesnity Data \n  
+        MetaData (pandas Dataframe): Initially a string, but upon creation by the getMetaData function, becomes a Data frame that holds the metadata.  \n
     
     '''
     def __init__(self,fin,meta ='', Minutes = True):
@@ -155,16 +229,53 @@ class Growth(object):
         self.intensity.columns = self.data.iloc[self.start+2 : -4, 0]  #rename the columns
         self.intensity.columns.name = 'Sample Well'        
         self.intensity.index = arange(size(self.intensity.index,0))    #rename the index(rows)
-        
         if meta=='':
             self.MetaData =''
-            print meta
         else: 
-            self.MetaData = self.getMetaData(meta)
+            self.getMetaData(meta)
+        self.estimateGrowthParameters()
         
-    def getParameters(self):
-        '''Calculate the parameters'''
-        pass
+    def estimateMaxRate(self):
+        '''Estimates the maximum growth rates by fitting a line exponential (linear part) of a growth curve. This function picks points automatically ranging from the the points greater than 0.5 of the floor and 0.95 of the plateau.
+        Args:
+            None
+        Returns:
+            None
+        '''
+        
+        #Calculate the Log of the data
+        self.Log  = self.intensity.apply(Log)
+        #calculate deltaa between the floor and the plateau
+        delta = self.plateau-self.floor
+        
+        #calculate a lower and upper threshold. 
+        lower_threshold = 0.2*delta + self.floor
+        upper_threshold = 0.8*delta + self.floor
+        
+        #get the points that are below it 
+        
+   
+    def estimateGrowthParameters(self, window=5):
+        '''Estimates the log time, maximal growth rate and the plateau/ Carrying capacity from data
+        Args:
+            window (int): The window size to be used for the rolling mean.
+        
+        Returns:
+            A tuple (tlag, uMax, floor,plateau)
+            '''
+        #Compute a rolling Mean     
+        self.rolling = rollingMeanDf(self.intensity,window=5)
+        
+        #compute the floor  and floor inex
+        self.floor = self.rolling.min(axis=0)
+        self.floor_index= self.rolling.idxmin(axis=0)
+        
+        #compute the plateau and the plateau index
+        self.plateau = self.rolling.max(axis=0)
+        self.plateau_index = self.rolling.idxmax(axis=0)
+        
+        #compute the maximal growth ratee for each column
+        self.estimateMaxRate()
         
     def plot(self, save =False, path = '', logY=False):
         #Plots the intensity data. 
@@ -182,10 +293,16 @@ class Growth(object):
         
         Args
             meta (str): Path to the meta data'''
-        self.MetaData = read_excel(fin)
+        self.MetaData = read_excel(meta)
     
     def subset(self,Value='', Parameter = 'Condition' ):
-        '''Creates a new Growth object subset on a given Parameter and Value.'''
+        '''Subset on a given value and parameter return a new growth object.
+        
+        Args:
+            Value (string): The name of the value to subset on.
+            Parameter (string): The name of column header to subset on.
+        Return:
+            Growth object'''
         
         if type(self.MetaData) ==str:
             print 'There is no Meta Data present for subsetting. '
@@ -213,60 +330,12 @@ if __name__=='__main__':
     meta = join(getcwd(), 'MetaData.xlsx')
     
     g = Growth(fin, meta ,Minutes= True)
-
-    
-    #g.plot()
-    #example slopes
-
-  #  t = g.time
-  #  y = g.intensity.iloc[:,13]
-
-    #y = normalize(y)
-
-
-    #plotNormalizedSlope(t,y)
-    #plotInflecionSlopeOnGraph(t,y,45)
-   # n = arange(15,45,16)
-    #M = [findInflection(t,y,i )[0] for i in n]
-    #plt.plot(n,M)
-    #plt.figure()
-    #[plotInflecionSlopeOnGraph(t,y,i) for i in n]
-    #plt.show(True)
-    
-     
-
-
-#    m = calculateSlopes(t,y,N)
-#    
-#    t2 = t[n:len(t)-n]
-#    y2  = y[n:len(t)-n]
-#    m= normalize(m)
-#    y = normalize(y)
-#    y2= normalize(y2)
-#    
-#    plt.plot(t2,m, t,y)
-#    m=list(m)
-#    i=m.index(max(m))
-#    T=t2[i]
-#    Y= y2[i]
-#    M = m[i]
-#    plt.plot(T,Y,'ro', T, M, 'go', markersize = 10)
-#    axes = plt.gca()
-#    axes.set_ylim([0,1.2])
-#    
-#    #find the new index
-#    i =list(t).index(T)   #this is where the index is. 
-#    #we want to estimate a slope around 
-#    c= linregress(t[i-n:i+n], y[i-n:i+n])
+    x=g.intensity.iloc[:,0]
     
 
-    
-    
-    
-    
-#    t4 = arange(0,1200,10)
-#    pred =[c[1]+c[0]*tt for tt in t4]
-#    plt.plot(t4,pred)
-# 
+    plotNormalizedSlope(g.time,x)
 
+
+    
+   
     
