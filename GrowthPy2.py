@@ -88,6 +88,19 @@ def predict(m, c, xmin, xmax, stepsize = 0.1):
     #Calculate the prediction and return
     return (X,[c+m*x for x in X ])
     
+def predict2(m, c, X):
+    '''Predicts a line with a user provided array.
+    
+    Args:
+        m (float): slope
+        c (float): y-intercept
+        X (numeric itrable)
+
+    Returns:
+        A predicted Y numeric array. '''
+
+    #Calculate the prediction and return it
+    return [c+m*x for x in X ]
     
 def plotNormalizedSlope(x,y,N=17, xlabel = 'X', ylabel= 'Normalized Slope / Y'):
     '''Normalizes an x,y, estimates and normalizes a slope and plots the data. \n
@@ -167,8 +180,7 @@ def normalize(x):
         x (numeric iterable): series. \n
     
     Returns:
-        a normalized series. 
-    
+        A normalized series. 
     '''
     return (x-min(x))/(max(x)-min(x))
 
@@ -181,9 +193,9 @@ def movingAverage(interval, window_size):
     
     Returns: 
         numpy array with the moving average. '''
+        
     window= numpy.ones(int(window_size))/float(window_size)
     return numpy.convolve(interval, window, 'same')
-
 
 def zero(x, N=5):
     ''' Zeros a series by subtracting the mean of the smallest N points from all points
@@ -194,7 +206,6 @@ def zero(x, N=5):
         A zeroed array/list'''
     #calculte the mean for the N smallest points and subtract it from the list
     return x- mean(sorted(x)[:N])
-
 
 def rollingMeanDf(df, window=5):
     '''Calculates a rolling mean for each column vector in a data frame using apply method This computes a moving 
@@ -258,27 +269,45 @@ class Growth(object):
         self.intensity = self.data.iloc[self.start+2 : -4, 1:]    #get the intensity information
         self.intensity = self.intensity.transpose()               #transpose the data
         self.intensity.columns = self.data.iloc[self.start+2 : -4, 0]  #rename the columns
-        self.intensity.columns.name = 'Sample Well'        
+        self.intensity.columns.name = 'Sample'        
         self.intensity.index = arange(size(self.intensity.index,0))    #rename the index(rows)
+        
+        #get the metaData. 
         if meta=='':
             self.MetaData =''
         else: 
             self.getMetaData(meta)
-            
+        #Get the length of the columns
+        self.length = len(self.intensity.columns)
         #Call estimateGrowthParameters to estimate the growth parameters. 
         self.estimateGrowthParameters()
-        
-    
-    def estimateMaxRate(self, x, logx, lower_t, upper_t ):
+            
+    def estimateMaxRate(self, index ):
         '''helper function that fits a line and returns the maximum rate.''' 
         
+        #Get the pertinent data
+        x= self.intensity.iloc[:,index]
+        logx = self.Log.iloc[:,index]
+        lower_t = self.lower_threshold[index]
+        upper_t = self.upper_threshold[index]
         #subset the log data based on the lower_t, upper_t and delta. 
+        
         #Calculate a boolean that determines the points that are greater than the lower threshold and less thatn the upper threshold
         b = logical_and(x>lower_t, x<upper_t)
+        #fit a line to this data.
+        fit =  linregress(self.time[b],logx[b] )
         
-        #fit a line to this data and return a tupple for the data. 
-        return linregress(self.time[b],logx[b] )
-    
+        #get the lower indices for the time points that are fit. 
+        #calculate the cumulative sum of b and convert it to an index for searching. 
+        b =Index(b.cumsum())
+        #Get the lower index by getting the location of the entry that is equal to 1. (This is the start)
+        lower_idx = b.get_loc(1)   
+        #Get the upper index by first getting the location of the max. This returns a slice so get the start of the slice. 
+        upper_idx = b.get_loc(max(b)).start
+        
+        #return a tupple with the slope, intercept, and indexes for the tmin and tmax,
+        return (fit[0], fit[1], lower_idx, upper_idx)
+        
     def estimateMaxRates(self):
         '''Estimates the maximum growth rates by fitting a line to the data in with the y log transformed. This function picks points automatically ranging from the the points greater than 0.2 of the floor and 0.8 of the plateau.
         
@@ -297,12 +326,29 @@ class Growth(object):
         self.upper_threshold = 0.8*self.delta + self.floor
         
         #use the estimateMaxRate to get a tupple
-        self.MaxRateTupples = [self.estimateMaxRate(self.intensity.iloc[:,i], self.Log.iloc[:,i], self.lower_threshold[i], self.upper_threshold[i]) for i in range(len(self.intensity.columns))]
+        self.MaxRateTupples = [self.estimateMaxRate(i) for i in range(self.length)]
        
         #get the max rates
         self.MaxRates = [tupple[0] for tupple in self.MaxRateTupples]
        
-       
+    
+    def estimateLagTime(self, index=0):
+        '''returns the lag times for the particular series'''
+        
+        #predict the line that goes through the max rate for the plateau
+        
+        #First calculate the prediction
+        #get the required parameters
+        m, c ,xmin, xmax = self.MaxRateTupples[index]
+        
+        #use the parameters and the the floor to solve for the time in in which the prediciton hits fllor. 
+        return (log(self.floor[index])-c)/m
+     
+    def estimateLagTimes(self):
+        '''uses estimateLagTime to estimate the lag time using a for loop'''
+        ###estimate the Lag time for each. 
+        self.lagTimes = [self.estimateLagTime(i) for i in range(self.length)]
+        
     def estimateGrowthParameters(self, window=5):
         '''Estimates the log time, maximal growth rate and the plateau/ Carrying capacity from data
         Args:
@@ -311,24 +357,30 @@ class Growth(object):
         Returns:
             A tuple (tlag, uMax, floor,plateau)
             '''
+        
         #Calculate the Log of the data which will be used in the estimation of the max rate. 
         self.Log  = self.intensity.apply(Log)
-        
+
         #Compute a rolling Mean     
         self.rolling = rollingMeanDf(self.intensity,window=5)
-        
+
         #Determine the values and index for the floor
         self.floor = self.rolling.min(axis=0)
         self.floor_index= self.rolling.idxmin(axis=0)
-        
+
         #Determine the values and index for the plateau
         self.plateau = self.rolling.max(axis=0)
         self.plateau_index = self.rolling.idxmax(axis=0)
-        
-        
+
         #compute the maximal growth ratefor each column
         self.estimateMaxRates()
-        
+
+        #compute the LagTimes: 
+        self.estimateLagTimes()
+
+        #make a data frame with the parameters for easy printing. 
+        self.formatParameters()
+
     def plot(self, save =False, path = '', logY=False):
         #Plots the intensity data. 
         self.intensity.plot(x=self.time, grid = False, logy=logY)
@@ -339,11 +391,34 @@ class Growth(object):
         #If save ==True: plot 
         if save ==True:
             plt.savefig(path)
+    
+    def plotMaxRate(self, index):
+        '''Plots the log of a a single growth curve and the its predicted growth rate.
+        
+        Args:
+            Index (int): The index of growth curve to be plotted. \n
+            
+        Returns:
+            None
+        '''
+        
+        #Get the the parameters for the prediction
+        m,c, xmin, xmax = g.MaxRateTupples[index]
+        #Predict the line for the slope. 
+        x_pred,y_pred = predict(m,c,self.time[self.floor_index[index]],g.time[self.plateau_index[index]])
+        
+        #plot the data
+        plot(self.time, self.Log.iloc[:,index], x_pred, y_pred)
+        #set the axis
+        axis([min(self.time), 
+              max(self.time),   
+              round(log(self.floor[index]),1)- 0.1, 
+              round(log(self.plateau[index]),1) +0.1 ])     
         
     def getMetaData(self,meta):
         '''Loads and parses meta data from a excel file
         
-        Args
+        Args:
             meta (str): Path to the meta data'''
         self.MetaData = read_excel(meta)
     
@@ -368,7 +443,8 @@ class Growth(object):
             NewGrowth = copy(self)
             NewGrowth.intensity = NewGrowth.intensity.iloc[:, Index]
             NewGrowth.MetaData = NewGrowth.MetaData.iloc[Index, :]
-            
+            NewGrowth.length = len(NewGrowth.intensity.columns)
+            NewGrowth.estimateGrowthParameters()
             return NewGrowth
     
     def zero(self, N=5, zero = False):
@@ -376,29 +452,54 @@ class Growth(object):
         self.intensity -= self.intensity.iloc[0:N, :].mean(axis=0) #take the average the first N points and subtract the average from the original data
         if zero ==True:
             self.intensity[self.intensity<0] =0
+            
+    def formatParameters(self):
+        '''returns the Parameters in a pandas DataFrame''' 
+        self.Parameters =DataFrame({  'Max Growth Rates': self.MaxRates, 'Lag Times (s)': self.lagTimes, 'Floor': self.floor, 'Plateau': self.plateau, 'Delta OD600': self.delta})
         
+    def PlotParameters(self , x='Concentration'):
+        '''Plots the parameters on scatter plots versus the concentrations.
+        Args: 
+            x (array): If x is left to concentration (which we assume it will be) this will plot the data versus concentration.
+            '''
+        if x=='Concentration':
+            x = self.MetaData.Concentration
+        
+        #Generate the Plots for parameters
+        fig,ax= plt.subplots(1,3, figsize = (9,2.2))
+        ax[0].scatter(x, self.Parameters[[0]])
+        ax[0].set_xlabel('Concentration')
+        ax[0].set_ylabel('Delta OD600')
+        ax[1].scatter(x,self.Parameters[[1]])
+        ax[1].set_xlabel('Concentration')
+        ax[1].set_ylabel('Lag Times (Min)')
+        ax[2].scatter(x, self.Parameters[[2]])
+        ax[2].set_xlabel('Concentration')
+        ax[2].set_ylabel('Max Growth Rate')
+        fig.tight_layout()
+        
+
+        
+        
+            
+            
+            
+            
+        
+                        
 if __name__=='__main__':
     fin = join(getcwd(),'Example.xlsx')
     meta = join(getcwd(), 'MetaData.xlsx')
     
     g = Growth(fin, meta ,Minutes= True)
-    x=g.intensity.iloc[:,0]
-    d = g.delta[0]
-    f = g.floor[0]
-    p = g.plateau[0]
-    
-    y = g.intensity
-    
-    
-    
-    #b1 = x>(f+0.2*d)
-    #b2 = x<f+0.8*d
-    b = logical_and(x>(f+0.2*d), x<f+0.8*d)
-    #print x>(f+0.2*d)
-    
-    #print(g.delta[0])
 
-    #plotNormalizedSlope(g.time,x)
+    #note to self copper has 18 rows.
+    copper = g.subset('Copper')
+    copper.PlotParameters()
     
-   
+    #note the problem with estimating parameters occurs with estimateMax rates. Why
+    # the floor and the plateua are fine-18
+    #the legnth was wrong. 
+
+
     
