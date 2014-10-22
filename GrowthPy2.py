@@ -286,7 +286,7 @@ class Growth(object):
         '''helper function that fits a line and returns the maximum rate.''' 
         
         #Get the pertinent data
-        x= self.intensity.iloc[:,index]
+        x = self.intensity.iloc[:,index]
         logx = self.Log.iloc[:,index]
         lower_t = self.lower_threshold[index]
         upper_t = self.upper_threshold[index]
@@ -298,13 +298,10 @@ class Growth(object):
         fit =  linregress(self.time[b],logx[b] )
         
         #get the lower indices for the time points that are fit. 
-        #calculate the cumulative sum of b and convert it to an index for searching. 
-        b =Index(b.cumsum())
-        #Get the lower index by getting the location of the entry that is equal to 1. (This is the start)
-        lower_idx = b.get_loc(1)   
-        #Get the upper index by first getting the location of the max. This returns a slice so get the start of the slice. 
-        upper_idx = b.get_loc(max(b)).start
-        
+        Index = x.index[b]
+        lower_idx = Index[0]  
+        upper_idx = Index[-1]
+       
         #return a tupple with the slope, intercept, and indexes for the tmin and tmax,
         return (fit[0], fit[1], lower_idx, upper_idx)
         
@@ -478,28 +475,31 @@ class Growth(object):
         ax[2].set_ylabel('Max Growth Rate')
         fig.tight_layout()
         
-
         
+    def AverageIntensities(self):
+        ''' Average the intensities'''
+        M = self.MetaData.copy().iloc[:,1:]
+        #make an array of tupples for the metadata and make a multiindex
+        M = [tuple(M.iloc[i,:]) for i in range(len(M))]
+        self.intensity.columns = MultiIndex.from_tuples(M , names = ['Amino Acid', 'Concentration', 'Replicate'])
         
-            
-            
-            
-            
+        #get the avereage intesnity. 
+        self.MeanIntensity = g.intensity.groupby(axis=1, level = ['Amino Acid', 'Concentration']).apply(mean, axis = 1)
+        
         
                         
 if __name__=='__main__':
-    fin = join(getcwd(),'Example.xlsx')
-    meta = join(getcwd(), 'MetaData.xlsx')
+    path = '/Users/christopherrivera/Desktop/PlateReaderGrowthExperiments/May222014'
+    fin = join(path, '5-23-14-platereder.xlsx')
+    meta = join(path, 'metaDataMay222014.xlsx')
     
     g = Growth(fin, meta ,Minutes= True)
-
-    #note to self copper has 18 rows.
-    copper = g.subset('Copper')
-    copper.PlotParameters()
     
-    #note the problem with estimating parameters occurs with estimateMax rates. Why
-    # the floor and the plateua are fine-18
-    #the legnth was wrong. 
-
-
+    ##make a copy of the meta data
+    #M = g.MetaData.copy().iloc[:,1:]
+    #make an array of tupples for the metadata and make a multiindex
+    #M = [tuple(M.iloc[i,:]) for i in range(len(M))]
+    #g.intensity.columns = MultiIndex.from_tuples(M , names = ['Amino Acid', 'Concentration', 'Replicate'])
     
+    #get the avereage intesnity. 
+    #g.MeanIntensity = g.intensity.groupby(axis=1, level = ['Amino Acid', 'Concentration']).apply(mean, axis = 1)
