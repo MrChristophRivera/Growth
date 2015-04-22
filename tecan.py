@@ -32,45 +32,53 @@ def createMultiIndexFromDataFrame(df):
     return pd.MultiIndex.from_tuples(index)
 
 class Growth(object):
-    '''Read in and parses a Tecan Excel file, and generates a Growth Object. The growth 
+    '''Reads in and parses a Tecan Excel file to generates a Growth Object. The Growth 
     object contains the data from the tecan experiment in a dictionary that holds each 
     "data" type (i.e. Absorbance, Flourescence ) as a value. It also has several other 
-    attributes. as well as a dataframe with metadata
+    attributes including as a dataframe with metadata.
     This assumes that the object contains at least one measurment for asborbances at 
     600 nm (growth) and allows for multiple flourescence readings.
         
         Attributes:
             time (pandas series): Contains the time data. \n
-            dataDict (dictionary): Dictionary that contains the data with metadat 
-            MetaData (pandas Dataframe): Initially a string, but upon creation by the getMetaData function, becomes a Data frame that holds the metadata.  \n
-            Parameters (pandas Dataframe): Contains the parameters for the fit. 
+            dataDict (dictionary): Dictionary that contains the data. \n
+            MetaData (pandas Dataframe): DataFrame that contains metadata. \n
+            Parameters (pandas Dataframe): Holds the parameters for fits. \n
         Args:
             fin (str): Absolute path or handle to the excel file. \n
             meta (str): If not equal to '', Path to to the MetaData excel file. \n
             minutes (bool): If True, the time data is converted from seconds to minutes. \n
-            fitData (bool): If True use several methods to fit the data and extract parameters. 
+            fitData (bool): If True use several methods to fit the data and extract parameters.\n 
     
         Returns: 
             A Growth Object'''
             
-    def __init__(self, fin, meta ='', Minutes = True, fitData = False):
+    def __init__(self, fin, meta ='', minutes = True, fitData = False):
         #Initializes  the growth object
         
         #import the raw data from the Tecan Excel file as a data frame         
         self.raw = pd.read_excel(fin, skiprows = 22)   
         
-        #get the first column of the data frame;
+        
+        ########################################################################
+        #Parse the excel file by 1) creating a searchable serires object from the 
+        #first column, 2) Searching for keywords 3) Using the keywords to find 
+        #appropriate index location. 4) Extracting the infomration and attaching 
+        #it a good data structure. 
+        
+        
+        #####get the first column of the data frame;
         #this column will be searched to identify tags (eg. Mode and Part of plate 
         #to tell the program the location of the data. )
         self.firstColumn = self.raw.iloc[:,0].copy()
         
-        #convert the na values to empty string for easier searching. 
+        #convert the NA values to an empty string for easier searching. 
         self.firstColumn[pd.isnull(self.firstColumn)] = ''   
         
         #Identify the rows that contain the mode information
         self.modesLocation=self.getRowIndexForWord('Mode')
         
-        #get the names for the modes. 
+        #get the names for the mode and place in a list. 
         self.modes = [self.raw.iloc[i, 4] for i in self.modesLocation]
         
         ###### Identify the locations of the raw data that hold the actual data. 
@@ -79,8 +87,8 @@ class Growth(object):
         
         #Get the string that contains the information for part of plate and split it into component parts. 
         PartOfPlate = self.raw.iat[PartOfPlate,4].split('-')   #iat method returns the value at the specific location. 
-        print PartOfPlate
-        #now get the locations for the start and end of the data values. 
+        
+        ###### Now get the locations for the start and end of the data values. 
         #these should include a list of values.  
        
         #identify the rows that contain the actual data using a method
@@ -165,7 +173,7 @@ class Growth(object):
 #test code 
 if __name__ == '__main__':   
     
-    fin ='/Users/christopherrivera/Desktop/testTecan.xlsx'
+    fin ='testTecan.xlsx'
     g = Growth(fin)
     #g.plot(g.modes[0])
     metadata = '/Users/christopherrivera/Desktop/metadata.csv'
@@ -173,6 +181,7 @@ if __name__ == '__main__':
    
     
 
+'''
    
 m = createMultiIndexFromDataFrame(metadata.iloc[1:, :])
 
@@ -184,3 +193,4 @@ d.columns = m
 
 
 g = d.groupby(by =m, axis =1)
+'''
