@@ -91,12 +91,12 @@ class Growth(object):
         ###### Now get the locations for the start and end of the data values. 
         #these should include a list of values.  
        
-        #identify the rows that contain the actual data using a method
+        #identify the rows that contain the raw intensity values. 
         self.firstRows = self.getRowIndexForWord(PartOfPlate[0])
         self.lastRows =  self.getRowIndexForWord(PartOfPlate[1])
         
         #create a dictionary that contains the data as data frames
-        self.createDataFrameDict()
+        self.createDataFrameDict()  #this functoin creates a data fram with the rows
         
         #get the time and attach it as its own variable
         timeIndex = self.firstColumn[self.firstColumn =='Time [s]'].index[0] #we only want the first value
@@ -105,8 +105,8 @@ class Growth(object):
         self.time.name = 'Time [Min]'   #rename it    
         
         #If the metadata is provided call the importMetaData function to import the meta Data.
-        #if metadata != '':
-         #   self.importMetaData(meta)
+        if meta !=  '':
+            self.importMetaData(meta)
             
     def createDataFrameDict(self):
         #get the data for each mode and place it to a dictionary with Mode: df pair 
@@ -151,36 +151,37 @@ class Growth(object):
         This assumes that the metadata is formated with 3 to 4 columns and is labeled
         Well, Condition, Concentration 1, Concentration 2'''
         
-        #import the metadata        
-        meta =  pd.read_csv(metadata)
-
-        #atttach it as an attribute that can be called later.         
-        self.metadata = meta
         
-        #go through the each key in the dataDict and assign the metadata to the columns
-        #for the attached DataFrame 
+        #import the metadata
+        self.meta =  pd.read_csv(metadata)
+        #format the metadata to a multindex object. 
+        
+        #create a new dataDict and call it averageData
+        self.averageData = {}        
+        
+        #in a for loop: 
+        #attach the metadata to the columns of each index for every dataframe in the datadictionary
         for mode in self.dataDict:
-            self.dataDict[mode].columns = meta
-
-        #create a new DataDict with the average values. 
+            self.dataDict[mode].columns = self.meta
+            
+            #use the group apply combine idiom. 
+            groupedData = dataDict[mode].groupby()
         
         
-        
-        
-        
-        #create a 
+      
 #%%        
 #test code 
 if __name__ == '__main__':   
     
     fin ='testTecan.xlsx'
-    g = Growth(fin)
-    #g.plot(g.modes[0])
-    metadata = '/Users/christopherrivera/Desktop/metadata.csv'
-    metadata = pd.read_csv(metadata)
+    
+    
+    metadata = 'MetaData.csv'
+    g = Growth(fin, metadata)
    
     
-
+data =g.dataDict.values()[0]
+k=data.appy()
 '''
    
 m = createMultiIndexFromDataFrame(metadata.iloc[1:, :])
