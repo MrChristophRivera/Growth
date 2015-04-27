@@ -28,8 +28,10 @@ def createMultiIndexFromDataFrame(df):
     #Use apply to convert the df to a Series of tupples
     index = df.apply(tuple,axis = 1)
     
+    
+    
     #Convert this to a multiIndex object and return it
-    return pd.MultiIndex.from_tuples(index)
+    return pd.MultiIndex.from_tuples(index, names = df.columns)
 
 class Growth(object):
     '''Reads in and parses a Tecan Excel file to generates a Growth Object. The Growth 
@@ -119,7 +121,10 @@ class Growth(object):
             data = self.raw.iloc[first:last,1:].copy().T  #T transposes
             data.columns = self.raw.iloc[first:last,0] #rename the columns
             
-            dataDict[self.modes[i]] = data   #attach to the diction
+            #zero the data
+            data=data.apply(lambda(x):x-np.min(x))            
+            
+            dataDict[self.modes[i]] = data   #attach to the dictionary
             
         self.dataDict = dataDict
         
@@ -146,14 +151,34 @@ class Growth(object):
             title = mode
         plt.title(mode + ' Versus Time' )
         
+        
+    def estimateExponentialFit(self):
+        #Estimate several parmetes based on a exponential fit. And place in a data frame
+        
+        #Get the data and then convert it to a log
+        od =self.dataDict['Absorbance']
+        logOD  =od.apply(np.log)
+        
+        def estimatefit(data):
+            
+        
+        
+        logOD_subset =logOD.apply(lanp.logical_and(od))
+        
+        #select only the data that has OD between 0.05 and 0.25
+        
+        #subset
+        
+        
+        
     def importMetaData(self, metadata):
         '''Imports metadata, as a data frame and reformats the columns.
         This assumes that the metadata is formated with 3 to 4 columns and is labeled
         Well, Condition, Concentration 1, Concentration 2'''
         
-        
         #import the metadata
         self.meta =  pd.read_csv(metadata)
+        index = createMultiIndexFromDataFrame(self.meta)  #convert the meta df into a muliindex object
         #format the metadata to a multindex object. 
         
         #create a new dataDict and call it averageData
@@ -162,12 +187,14 @@ class Growth(object):
         #in a for loop: 
         #attach the metadata to the columns of each index for every dataframe in the datadictionary
         for mode in self.dataDict:
-            self.dataDict[mode].columns = self.meta
+            self.dataDict[mode].columns = index #convert the metadata
             
-            #use the group apply combine idiom. 
-            groupedData = dataDict[mode].groupby()
-        
-        
+            #use the group apply combine idiom to calculate the means. 
+            #transpose the dataframe and then group by the appropriate levels. 
+            
+            grouped = self.dataDict[mode].T.groupby(level =range(1,len(meta.names)))
+            #compute the average then transpose and attach to the average dataFrame 
+            self.averageData[mode] = grouped.apply(np.mean).T
       
 #%%        
 #test code 
@@ -175,15 +202,22 @@ if __name__ == '__main__':
     
     fin ='testTecan.xlsx'
     
-    
     metadata = 'MetaData.csv'
     g = Growth(fin, metadata)
-   
+    metadata = pd.read_csv('MetaData.csv')
     
-data =g.dataDict.values()[0]
-k=data.appy()
-'''
+    
+'''    
+    meta = createMultiIndexFromDataFrame(metadata)
    
+    data = g.dataDict.values()[0]
+    data.columns = meta
+    
+    grouped = data.T.groupby(level =range(1,len(meta.names)))  #transpose the data and groupby the 2 and on levels
+    groupedMean = grouped.apply(np.mean).T   #apply the mean to the groups, tranpose 
+    
+    
+  
 m = createMultiIndexFromDataFrame(metadata.iloc[1:, :])
 
 
