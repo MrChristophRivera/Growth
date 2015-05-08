@@ -19,20 +19,6 @@ from copy import copy
 from scipy.stats import linregress
 
 #%%
-def createMultiIndexFromDataFrame(df):
-    '''Transforms a dataframe (df) into a list of tupples and then into a MultiIndex object.
-    Args:
-        df ( pd.DataFrame)
-    Returns:
-        MultiIndex'''
-    #Use apply to convert the df to a Series of tupples
-    index = df.apply(tuple,axis = 1)
-    
-    
-    
-    #Convert this to a multiIndex object and return it
-    return pd.MultiIndex.from_tuples(index, names = df.columns)
-
 class Growth(object):
     '''Reads in and parses a Tecan Excel file to generates a Growth Object. The Growth 
     object contains the data from the tecan experiment in a dictionary that holds each 
@@ -48,7 +34,7 @@ class Growth(object):
             Parameters (pandas Dataframe): Holds the parameters for fits. \n
         Args:
             fin (str): Absolute path or handle to the excel file. \n
-            meta (str): If not equal to '', Path to to the MetaData excel file. \n
+            meta (str): If not equal to '', path to to the MetaData excel file. \n
             minutes (bool): If True, the time data is converted from seconds to minutes. \n
             fitData (bool): If True use several methods to fit the data and extract parameters.\n 
     
@@ -60,7 +46,6 @@ class Growth(object):
         
         #import the raw data from the Tecan Excel file as a data frame         
         self.raw = pd.read_excel(fin, skiprows = 22)   
-        
         
         ########################################################################
         #Parse the excel file by 1) creating a searchable serires object from the 
@@ -109,6 +94,7 @@ class Growth(object):
         #If the metadata is provided call the importMetaData function to import the meta Data.
         if meta !=  '':
             self.importMetaData(meta)
+            self.Parameters = self.estimateExponentialParameters()
             
     def createDataFrameDict(self):
         #get the data for each mode and place it to a dictionary with Mode: df pair 
@@ -141,7 +127,7 @@ class Growth(object):
          #   return indices[0]
         return indices
         
-    def plot(self, mode = 'Absorbance',title=''):
+    def plotData(self, mode = 'Absorbance',title=''):
         '''Plots the data'''
         data = self.dataDict[mode]   #get the data
         data.plot(x= self.time)
@@ -150,35 +136,44 @@ class Growth(object):
         if title == '':
             title = mode
         plt.title(mode + ' Versus Time' )
-        
-        
-    def estimateExponentialFit(self):
+               
+    def estimateExponentialParameters(self, minOD = 0.05, maxOD = 0.30):
         #Estimate several parmetes based on a exponential fit. And place in a data frame
         
-        #Get the data and then convert it to a log
-        od =self.dataDict['Absorbance']
-        logOD  =od.apply(np.log)
-        
-        def estimatefit(data):
+        #Get the Absorbance data and then compute the parameters. 
+        data =self.averageData['Absorbance']
+      
+        def estimatefit(t,x, minOD, maxOD):
+            #perform linear regression on data points within  a series.
+            #convert to log
+            y = np.log(x+.0001)
+            #subset to the points that are with in an interval of the minOD and the MaxOD
+            included_points = np.logical_and(x>minOD, x<maxOD)
+            T = t[included_points]
+            #T = T-np.min(T)
+            Y =  y[included_points]
+            #plt.plot(T, Y )#, '.' ,markersize = 10)
+            return list(linregress(T, Y)) + [len(T)]
             
+        #Create a data frame with the parameters. 
+        fits = pd.DataFrame({data.columns[i]: estimatefit(self.time, data.iloc[:,i],minOD, maxOD) for i in range(len(data.columns))})
+        lagtime=-fits.iloc[1,:]/fits.iloc[0,:]
         
-        
-        logOD_subset =logOD.apply(lanp.logical_and(od))
-        
-        #select only the data that has OD between 0.05 and 0.25
-        
-        #subset
-        
-        
-        
+        #append the lag time (which is estimated from the fit. ) and the maximum value fo the series
+        lagtime=-fits.iloc[1,:]/fits.iloc[0,:]
+        fits = fits.append(lagtime, ignore_index=True)
+        fits = fits.append(data.apply(np.max), ignore_index=True)
+        fits.index = ['slope', 'intercept', 'r-value', 'p-value', 'stderr','Number of Points','Lag Time', 'Max']
+        return fits
+           
     def importMetaData(self, metadata):
         '''Imports metadata, as a data frame and reformats the columns.
         This assumes that the metadata is formated with 3 to 4 columns and is labeled
         Well, Condition, Concentration 1, Concentration 2'''
         
         #import the metadata
-        self.meta =  pd.read_csv(metadata)
-        index = createMultiIndexFromDataFrame(self.meta)  #convert the meta df into a muliindex object
+        self.meta=  pd.read_csv(metadata)
+        index = self.createMultiIndexFromDataFrame(self.meta)  #convert the meta df into a muliindex object
         #format the metadata to a multindex object. 
         
         #create a new dataDict and call it averageData
@@ -192,9 +187,21 @@ class Growth(object):
             #use the group apply combine idiom to calculate the means. 
             #transpose the dataframe and then group by the appropriate levels. 
             
-            grouped = self.dataDict[mode].T.groupby(level =range(1,len(meta.names)))
+            grouped = self.dataDict[mode].T.groupby(level =range(1,len(self.meta.columns)))
             #compute the average then transpose and attach to the average dataFrame 
             self.averageData[mode] = grouped.apply(np.mean).T
+            
+    def createMultiIndexFromDataFrame(self,df):
+        '''Transforms a dataframe (df) into a list of tupples and then into a MultiIndex object.
+        Args:
+            df ( pd.DataFrame)
+        Returns:
+            MultiIndex'''
+        #Use apply to convert the df to a Series of tupples
+        index = df.apply(tuple,axis = 1)
+                    
+        #Convert this to a multiIndex object and return it
+        return pd.MultiIndex.from_tuples(index, names = df.columns)
       
 #%%        
 #test code 
@@ -205,27 +212,31 @@ if __name__ == '__main__':
     metadata = 'MetaData.csv'
     g = Growth(fin, metadata)
     metadata = pd.read_csv('MetaData.csv')
+    meta = metadata.apply(lambda x: x.astype(str))
     
     
-'''    
-    meta = createMultiIndexFromDataFrame(metadata)
-   
-    data = g.dataDict.values()[0]
-    data.columns = meta
     
-    grouped = data.T.groupby(level =range(1,len(meta.names)))  #transpose the data and groupby the 2 and on levels
-    groupedMean = grouped.apply(np.mean).T   #apply the mean to the groups, tranpose 
+    ''' 
+    def plotParameters(Parameters):
+        #plots the parameters 
+        #1. Group by the meta data level 0
+        grouped = Parameters.groupby(level = 0,axis = 1) #group by the first level
+        for name, group in grouped: 
+            f, (ax1, ax2, ax3) = plt.subplots(3, sharex=True)   #create a suplot
+            #plot growth rate (Mu), lag time, Maximum
+            ax1.plot()
+            
+            
+            
+            
+            
+            
+    data =g.Parameters 
+    plotParameters(data)'''
     
-    
-  
-m = createMultiIndexFromDataFrame(metadata.iloc[1:, :])
+#%%%
 
 
-d = g.dataDict.values()[0]
-d.columns = m
-
-#now try to group by
 
 
-g = d.groupby(by =m, axis =1)
-'''
+
