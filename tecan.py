@@ -92,9 +92,11 @@ class Growth(object):
         self.time.name = 'Time [Min]'   #rename it    
         
         #If the metadata is provided call the importMetaData function to import the meta Data.
-        if meta !=  '':
+        if meta is not '':
             self.importMetaData(meta)
             self.Parameters = self.estimateExponentialParameters()
+        else: 
+            self.meta = None
             
     def createDataFrameDict(self):
         #get the data for each mode and place it to a dictionary with Mode: df pair 
@@ -123,21 +125,100 @@ class Growth(object):
         index = self.firstColumn.str.contains(word).astype('bool')
         #return a list of the indicess
         indices =  list(self.firstColumn.index[index])
-        #if len(indices )==1:
-         #   return indices[0]
+
         return indices
         
-    def plotData(self, mode = 'Absorbance',title=''):
-        '''Plots the data'''
-        data = self.dataDict[mode]   #get the data
-        data.plot(x= self.time)
-        plt.xlabel('Time [min]')
-        plt.ylabel('Intensity (Au)')
-        if title == '':
-            title = mode
-        plt.title(mode + ' Versus Time' )
-               
-    def estimateExponentialParameters(self, minOD = 0.05, maxOD = 0.30):
+    def plotData(self, mode = 'Absorbance',ylabel='', plotRaw=False, save= False, savename = 'TimeSeries.pdf'):
+        '''Plots the data.
+        Args: 
+            mode(str): Which data to plot - absorbance or data. 
+            plotRaw(bool): If True, plot the raw data. 
+            save (bool): If True, plot the figure to the current directory.
+            savename(str): Name of plot. '''
+        
+        #Create a subfuction to make the plots. 
+        
+        def makePlots(data, level, ylabel):
+            #makes the actual plots
+            
+            #group the plots by the appropriate level and then plot it. 
+            grouped = data.groupby(level = level,axis = 1)
+            number_groups = len(grouped)
+            
+            #get the group names
+            group_names = [grp for grp in grouped.groups]
+            
+            #make a subplot 
+            f, axes = plt.subplots(ncols = number_groups, figsize = (number_groups*6,5), sharey=True)
+            if ylabel is '':
+                ylabel = mode
+                
+            #do the plotting 
+            for i in range(number_groups):
+                sub_data = grouped.get_group(group_names[i])
+                sub_data.plot(x = self.time,ax = axes[i] )
+                #set titles                
+                axes[i].set_xlabel('Time (min)')
+                axes[i].set_ylabel(ylabel)
+                axes[i].set_title(group_names[i])
+            
+            #plot the data
+            if save==True:
+                plt.savefig(savename)
+    
+    
+        if plotRaw is True: 
+            data = self.dataDict[mode]   #get the data
+            makePlots(data, level = 1,ylabel = ylabel) 
+        
+        elif self.meta is not None: 
+            data = self.averageData[mode]
+            makePlots(data, level = 0,ylabel = ylabel)
+                            
+        else:
+            data = self.dataDict[mode]   #get the data
+            makePlots(data, level = 1,ylabel = ylabel)
+
+        
+    def plotParameters(self,Parameter= 'Growth Rate', xlabel ='Concentration (uM)', ylabel = 'number/min',  save= False, savename = 'Parameters.pdf'):
+        '''Plots the Parameter Data as a scatter plot. 
+        Args: 
+           Parameter(str): the Parameter to plot. 
+           xlabel(str):
+           ylabel(str)
+           save(Bool): Set to True if wish to save. 
+           savename(str)
+           '''
+        #group the data 
+        grouped = self.Parameters.groupby(level = 0,axis = 1)   
+        
+        #get the number of groups
+        number_groups = len(grouped)
+            
+        #get the group names
+        group_names = [grp for grp in grouped.groups]
+        
+        #set up the plots         
+        f, axes = plt.subplots(ncols = number_groups, figsize = (number_groups*6,5), sharey=False)
+ 
+        #use a for loop to go through each group,get the data and plot it.        
+        for i in range(number_groups):
+            sub_data = grouped.get_group(group_names[i])
+            
+            #Get the xx and ydata and convert it a list (to aid in plotting with scatter)
+            ydata = list(sub_data.loc[Parameter])   
+            xdata = list(sub_data.loc['Concentration'])
+            #Plot the data to the appropriate axes and annotate. 
+            axes[i].scatter(x = xdata, y = ydata, s = 40)
+            axes[i].set_title(group_names[i])
+            axes[i].set_xlabel(xlabel)
+            axes[i].set_ylabel(ylabel)
+    
+        #save if desired    
+        if save==True:
+            plt.savefig(savename)
+                   
+    def estimateExponentialParameters(self, minOD = 0.05, maxOD = 0.1):
         #Estimate several parmetes based on a exponential fit. And place in a data frame
         
         #Get the Absorbance data and then compute the parameters. 
@@ -150,29 +231,38 @@ class Growth(object):
             #subset to the points that are with in an interval of the minOD and the MaxOD
             included_points = np.logical_and(x>minOD, x<maxOD)
             T = t[included_points]
-            #T = T-np.min(T)
             Y =  y[included_points]
-            #plt.plot(T, Y )#, '.' ,markersize = 10)
-            return list(linregress(T, Y)) + [len(T)]
+            if len(T)<3:
+                return [0,0,0,0,0, len(T)]
+            else:
+                return list(linregress(T, Y)) + [len(T)]
             
         #Create a data frame with the parameters. 
         fits = pd.DataFrame({data.columns[i]: estimatefit(self.time, data.iloc[:,i],minOD, maxOD) for i in range(len(data.columns))})
-        lagtime=-fits.iloc[1,:]/fits.iloc[0,:]
         
-        #append the lag time (which is estimated from the fit. ) and the maximum value fo the series
-        lagtime=-fits.iloc[1,:]/fits.iloc[0,:]
-        fits = fits.append(lagtime, ignore_index=True)
-        fits = fits.append(data.apply(np.max), ignore_index=True)
-        fits.index = ['slope', 'intercept', 'r-value', 'p-value', 'stderr','Number of Points','Lag Time', 'Max']
+        
+        #Add the lag time
+        fits.loc['Lag Time']=-fits.iloc[1,:]/fits.iloc[0,:]
+       
+        #add the 'Pleateau'
+        fits.loc['Max'] = data.apply(np.max)
+        
+        #add concentrations for easier plotting later on
+        fits.loc['Concentration'] = fits.columns.get_level_values(level = 1)
+        
+        #renamte the index
+        fits.index =['Growth Rate', 'intercept', 'r-value', 'p-value', 'stderr','Number of Points', 'Lag Time', 'Max','Concentration']
+        
         return fits
-           
+        
+        
     def importMetaData(self, metadata):
         '''Imports metadata, as a data frame and reformats the columns.
         This assumes that the metadata is formated with 3 to 4 columns and is labeled
         Well, Condition, Concentration 1, Concentration 2'''
         
         #import the metadata
-        self.meta=  pd.read_csv(metadata)
+        self.meta=  pd.read_csv(metadata).apply(lambda x: x.astype(str))   #the last part is to ensure that everything is string. 
         index = self.createMultiIndexFromDataFrame(self.meta)  #convert the meta df into a muliindex object
         #format the metadata to a multindex object. 
         
@@ -211,31 +301,21 @@ if __name__ == '__main__':
     
     metadata = 'MetaData.csv'
     g = Growth(fin, metadata)
-    metadata = pd.read_csv('MetaData.csv')
-    meta = metadata.apply(lambda x: x.astype(str))
+    g.Parameters
+    g.plotParameters()
     
+ 
     
-    
-    ''' 
-    def plotParameters(Parameters):
-        #plots the parameters 
-        #1. Group by the meta data level 0
-        grouped = Parameters.groupby(level = 0,axis = 1) #group by the first level
-        for name, group in grouped: 
-            f, (ax1, ax2, ax3) = plt.subplots(3, sharex=True)   #create a suplot
-            #plot growth rate (Mu), lag time, Maximum
-            ax1.plot()
-            
-            
-            
-            
-            
-            
-    data =g.Parameters 
-    plotParameters(data)'''
+   
     
 #%%%
 
+
+
+            
+            #plt.scatter(x = xdata, y= sub_data)
+            #plt.xlabel(xlabel)
+            #plt.ylabel(ylabel)'''
 
 
 
