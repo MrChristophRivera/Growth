@@ -29,7 +29,7 @@ class Growth(object):
         
         Attributes:
             time (pandas series): Contains the time data. \n
-            dataDict (dictionary): Dictionary that contains the data. \n
+            rawData (dictionary): Dictionary that contains the data. \n
             MetaData (pandas Dataframe): DataFrame that contains metadata. \n
             Parameters (pandas Dataframe): Holds the parameters for fits. \n
         Args:
@@ -100,7 +100,7 @@ class Growth(object):
             
     def createDataFrameDict(self):
         #get the data for each mode and place it to a dictionary with Mode: df pair 
-        dataDict = {}
+        rawData = {}
         for i in range(len(self.modes)):
             
             #get the data, copy it and transpose it   
@@ -112,9 +112,9 @@ class Growth(object):
             #zero the data
             data=data.apply(lambda(x):x-np.min(x))            
             
-            dataDict[self.modes[i]] = data   #attach to the dictionary
+            rawData[self.modes[i]] = data   #attach to the dictionary
             
-        self.dataDict = dataDict
+        self.rawData = rawData
         
     def getRowIndexForWord(self, word):
         '''Helper function that searches the firstColumn index for key words.
@@ -128,13 +128,14 @@ class Growth(object):
 
         return indices
         
-    def plotData(self, mode = 'Absorbance',ylabel='', plotRaw=False, save= False, savename = 'TimeSeries.pdf'):
+    def plotData(self, mode = 'Absorbance',ylabel='', plotRaw=False, save= False, savename = 'TimeSeries.pdf', ncols =''):
         '''Plots the data.
         Args: 
             mode(str): Which data to plot - absorbance or data. 
             plotRaw(bool): If True, plot the raw data. 
             save (bool): If True, plot the figure to the current directory.
-            savename(str): Name of plot. '''
+            savename(str): Name of plot. 
+            ncols (int): number of columns for formating the plot. '''
         
         #Create a subfuction to make the plots. 
         
@@ -148,8 +149,11 @@ class Growth(object):
             #get the group names
             group_names = [grp for grp in grouped.groups]
             
+
+            if ncols is '': 
+                ncols = number_groups
             #make a subplot 
-            f, axes = plt.subplots(ncols = number_groups, figsize = (number_groups*6,5), sharey=True)
+            f, axes = plt.subplots(ncols = ncols, figsize = (number_groups*6,5), sharey=True)
             if ylabel is '':
                 ylabel = mode
                 
@@ -168,7 +172,7 @@ class Growth(object):
     
     
         if plotRaw is True: 
-            data = self.dataDict[mode]   #get the data
+            data = self.rawData[mode]   #get the data
             makePlots(data, level = 1,ylabel = ylabel) 
         
         elif self.meta is not None: 
@@ -176,7 +180,7 @@ class Growth(object):
             makePlots(data, level = 0,ylabel = ylabel)
                             
         else:
-            data = self.dataDict[mode]   #get the data
+            data = self.rawData[mode]   #get the data
             makePlots(data, level = 1,ylabel = ylabel)
 
         
@@ -266,18 +270,18 @@ class Growth(object):
         index = self.createMultiIndexFromDataFrame(self.meta)  #convert the meta df into a muliindex object
         #format the metadata to a multindex object. 
         
-        #create a new dataDict and call it averageData
+        #create a new rawData and call it averageData
         self.averageData = {}        
         
         #in a for loop: 
-        #attach the metadata to the columns of each index for every dataframe in the datadictionary
-        for mode in self.dataDict:
-            self.dataDict[mode].columns = index #convert the metadata
+        #attach the metadata to the columns of each index for every dataframe in the rawDataionary
+        for mode in self.rawData:
+            self.rawData[mode].columns = index #convert the metadata
             
             #use the group apply combine idiom to calculate the means. 
             #transpose the dataframe and then group by the appropriate levels. 
             
-            grouped = self.dataDict[mode].T.groupby(level =range(1,len(self.meta.columns)))
+            grouped = self.rawData[mode].T.groupby(level =range(1,len(self.meta.columns)))
             #compute the average then transpose and attach to the average dataFrame 
             self.averageData[mode] = grouped.apply(np.mean).T
             
