@@ -128,62 +128,70 @@ class Growth(object):
 
         return indices
         
-    def plotData(self, mode = 'Absorbance',ylabel='', plotRaw=False, save= False, savename = 'TimeSeries.pdf', ncols =''):
+    def plotData(self, mode = 'Absorbance', ylabel='', plotRaw=False, save= False, savename = 'TimeSeries.pdf', ncols ='',linewidth =2):
         '''Plots the data.
         Args: 
             mode(str): Which data to plot - absorbance or data. 
             plotRaw(bool): If True, plot the raw data. 
             save (bool): If True, plot the figure to the current directory.
             savename(str): Name of plot. 
-            ncols (int): number of columns for formating the plot. '''
+            ncols (int): number of columns for formating the plot.
+            linewidth(int or float): width of the lines. '''
         
         #Create a subfuction to make the plots. 
         
-        def makePlots(data, level, ylabel):
-            #makes the actual plots
-            
+        def makePlots(data, level, ylabel, ncols,linewidth):
+            #formats and plots the data. 
             #group the plots by the appropriate level and then plot it. 
             grouped = data.groupby(level = level,axis = 1)
+           
             number_groups = len(grouped)
             
             #get the group names
             group_names = [grp for grp in grouped.groups]
             
-
+            #calculate the number of rows and columns for formating the figure. 
             if ncols is '': 
                 ncols = number_groups
+            nrows = int(np.ceil(float(number_groups)/ncols))   #this is to cast the number of rows and columns correctly.
+            
             #make a subplot 
-            f, axes = plt.subplots(ncols = ncols, figsize = (number_groups*6,5), sharey=True)
+            f, axes = plt.subplots( ncols = ncols, nrows = nrows, figsize = (ncols*6,nrows*5), sharey=True)
             if ylabel is '':
                 ylabel = mode
                 
-            #do the plotting 
+            #do the plotting in a subplot
             for i in range(number_groups):
+                # if the number of groups is less than the number of cols, compute a row and column as a tupple
+                if ncols < number_groups:
+                    axesLocation = (i / ncols , i % ncols ) 
+                else:
+                    axesLocation = i
+                #get the data and plot it.
                 sub_data = grouped.get_group(group_names[i])
-                sub_data.plot(x = self.time,ax = axes[i] )
-                #set titles                
-                axes[i].set_xlabel('Time (min)')
-                axes[i].set_ylabel(ylabel)
-                axes[i].set_title(group_names[i])
-            
+                sub_data.plot(x = self.time, ax = axes[axesLocation] , colormap ='GnBu', linewidth=linewidth)  #this is the line that does the plotting                          
+                
+                #format the axes.                
+                axes[axesLocation].set_xlabel('Time (min)')
+                axes[axesLocation].set_ylabel(ylabel)
+                axes[axesLocation].set_title(group_names[i])
+
             #plot the data
             if save==True:
                 plt.savefig(savename)
     
-    
         if plotRaw is True: 
             data = self.rawData[mode]   #get the data
-            makePlots(data, level = 1,ylabel = ylabel) 
+            makePlots(data, level = 1,ylabel = ylabel, ncols  = ncols,linewidth = linewidth) 
         
         elif self.meta is not None: 
             data = self.averageData[mode]
-            makePlots(data, level = 0,ylabel = ylabel)
+            makePlots(data, level = 0,ylabel = ylabel,ncols = ncols,linewidth = linewidth)
                             
         else:
             data = self.rawData[mode]   #get the data
-            makePlots(data, level = 1,ylabel = ylabel)
-
-        
+            makePlots(data, level = 1,ylabel = ylabel, ncols = ncols,linewidth = linewidth)
+     
     def plotParameters(self,Parameter= 'Growth Rate', xlabel ='Concentration (uM)', ylabel = 'number/min',  save= False, savename = 'Parameters.pdf'):
         '''Plots the Parameter Data as a scatter plot. 
         Args: 
@@ -212,6 +220,7 @@ class Growth(object):
             #Get the xx and ydata and convert it a list (to aid in plotting with scatter)
             ydata = list(sub_data.loc[Parameter])   
             xdata = list(sub_data.loc['Concentration'])
+            
             #Plot the data to the appropriate axes and annotate. 
             axes[i].scatter(x = xdata, y = ydata, s = 40)
             axes[i].set_title(group_names[i])
@@ -258,8 +267,7 @@ class Growth(object):
         fits.index =['Growth Rate', 'intercept', 'r-value', 'p-value', 'stderr','Number of Points', 'Lag Time', 'Max','Concentration']
         
         return fits
-        
-        
+              
     def importMetaData(self, metadata):
         '''Imports metadata, as a data frame and reformats the columns.
         This assumes that the metadata is formated with 3 to 4 columns and is labeled
@@ -306,21 +314,9 @@ if __name__ == '__main__':
     metadata = 'MetaData.csv'
     g = Growth(fin, metadata)
     g.Parameters
-    g.plotParameters()
-    
- 
-    
-   
-    
+    g.plotData(ncols = 2)
+         
 #%%%
-
-
-
-            
-            #plt.scatter(x = xdata, y= sub_data)
-            #plt.xlabel(xlabel)
-            #plt.ylabel(ylabel)'''
-
 
 
 
